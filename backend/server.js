@@ -1,9 +1,31 @@
 const express = require('express');
 const cors = require('cors');
+require('dotenv').config();
+
 const app = express();
 
-app.use(cors());
+// Restrict CORS to specific origins in production
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'], // Update with your frontend URL
+  credentials: true,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error', 
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
 
 // Mock Reports Database
 let reportsHistory = [
@@ -16,44 +38,52 @@ let reportsHistory = [
 
 // Endpoint to get all reports
 app.get('/api/reports', (req, res) => {
-  res.json(reportsHistory);
+  try {
+    res.json(reportsHistory);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve reports' });
+  }
 });
 
 // Endpoint to trigger report generation
 app.post('/api/trigger-report', (req, res) => {
-  const { reportName, dataSource } = req.body;
+  try {
+    const { reportName, dataSource } = req.body;
 
-  if (!reportName || !dataSource) {
-    return res.status(400).json({ error: "Missing required fields: reportName and dataSource" });
-  }
-
-  // Simulate report generation process
-  const jobId = "JOB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
-  const newReport = {
-    id: jobId,
-    name: reportName,
-    type: "Custom", // Assuming custom for triggered reports
-    status: "Queued",
-    date: new Date().toISOString().split('T')[0],
-    size: "N/A"
-  };
-  reportsHistory.push(newReport);
-
-  // Simulate a delay for report generation
-  setTimeout(() => {
-    const reportIndex = reportsHistory.findIndex(r => r.id === jobId);
-    if (reportIndex !== -1) {
-      reportsHistory[reportIndex].status = "Generated";
-      reportsHistory[reportIndex].size = (Math.random() * 3 + 1).toFixed(1) + " MB"; // Simulate size
-      console.log(`Report ${jobId} (${reportName}) generated successfully.`);
+    if (!reportName || !dataSource) {
+      return res.status(400).json({ error: "Missing required fields: reportName and dataSource" });
     }
-  }, 5000); // Simulate 5 seconds generation time
 
-  res.status(202).json({ 
-    success: true, 
-    message: `Report generation for '${reportName}' initiated. You will be notified upon completion. Job ID: ${jobId}`,
-    jobId: jobId
-  });
+    // Simulate report generation process
+    const jobId = "JOB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const newReport = {
+      id: jobId,
+      name: reportName,
+      type: "Custom", // Assuming custom for triggered reports
+      status: "Queued",
+      date: new Date().toISOString().split('T')[0],
+      size: "N/A"
+    };
+    reportsHistory.push(newReport);
+
+    // Simulate a delay for report generation
+    setTimeout(() => {
+      const reportIndex = reportsHistory.findIndex(r => r.id === jobId);
+      if (reportIndex !== -1) {
+        reportsHistory[reportIndex].status = "Generated";
+        reportsHistory[reportIndex].size = (Math.random() * 3 + 1).toFixed(1) + " MB"; // Simulate size
+        console.log(`Report ${jobId} (${reportName}) generated successfully.`);
+      }
+    }, 5000); // Simulate 5 seconds generation time
+
+    res.status(202).json({
+      success: true,
+      message: `Report generation for '${reportName}' initiated. You will be notified upon completion. Job ID: ${jobId}`,
+      jobId: jobId
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to trigger report generation' });
+  }
 });
 
 const PORT = 5005;
